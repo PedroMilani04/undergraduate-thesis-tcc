@@ -16,8 +16,8 @@ INICIO = '2015-01-01'
 FIM = '2024-12-31'
 
 # Parâmetros da Barreira Tripla (Triple Barrier)
-HORIZONTE_DIAS = 10     # (k)
-ALVO_RETORNO = 0.03     # (tau)
+HORIZONTE_DIAS = 7  # (k)
+ALVO_RETORNO = 0.0325  # (tau)
 
 # --- SUA FUNÇÃO DE ROTULAGEM (Mantida Intacta) ---
 def rotular_barreira_tripla(row, dados_futuros, horizonte, alvo):
