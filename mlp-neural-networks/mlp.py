@@ -17,7 +17,7 @@ sys.path.append(parent_dir)
 import transforming 
 
 # --- CONFIGURAÇÕES ---
-INPUT_FOLDER = '1-processed-data'
+INPUT_FOLDER = os.path.join(parent_dir, '1-processed-data')
 TARGET_COL = 'Alvo'
 
 def main():
@@ -37,7 +37,7 @@ def main():
             # [DECISÃO DE PROJETO]
             # Descomente a linha abaixo para FILTRAR NEUTROS (Modo 2 Classes)
             # Comente para usar TUDO (Modo 3 Classes)
-            df = df[df[TARGET_COL] != 0] 
+            # df = df[df[TARGET_COL] != 0] 
 
             if len(df) < 50: continue
 
@@ -87,8 +87,8 @@ def main():
         hidden_layer_sizes=(64, 32), # <--- DEFINA SUAS CAMADAS AQUI
         activation='relu',           # 'relu', 'tanh', 'logistic'
         solver='adam',               # Otimizador
-        learning_rate_init=0.001,    # Velocidade de aprendizado
-        max_iter=500,                # Quantas vezes ele vê os dados
+        learning_rate_init=0.009,    # Velocidade de aprendizado
+        max_iter=200,                # Quantas vezes ele vê os dados
         early_stopping=True,         # Para se não melhorar?
         random_state=42,
         verbose=True                 # Mostra o treino no terminal
@@ -116,7 +116,8 @@ def main():
     plt.figure(figsize=(6, 5))
     sns.heatmap(confusion_matrix(y_test, preds), annot=True, fmt='d', cmap='Blues')
     plt.title(f"MLP - Acc: {acc:.2%}")
-    plt.show()
+    plt.savefig('./mlp-neural-networks/mlp_3_classes.png')
+    # plt.savefig('./mlp-neural-networks/mlp_2_classes.png')
 
 if __name__ == "__main__":
     main()
