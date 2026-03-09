@@ -25,7 +25,7 @@ def xgboostModel():
     lista_y_test = []
 
     print("\n" + "="*60)
-    print("      INICIANDO PIPELINE DE TREINAMENTO (MODO DETALHADO)")
+    print("      INICIANDO PIPELINE DE TREINAMENTO (MODO DIRETO 0 e 1)")
     print("="*60 + "\n")
 
     arquivos = [f for f in os.listdir(INPUT_FOLDER) if f.endswith('.csv')]
@@ -38,10 +38,6 @@ def xgboostModel():
             print(f"   > Lendo: {arquivo}...", end=" ")
             df = pd.read_csv(os.path.join(INPUT_FOLDER, arquivo))
             shape_orig = df.shape
-            
-            # Filtro de Neutros
-            if TARGET_COL in df.columns:
-                df = df[df[TARGET_COL] != 0] 
             
             # Check de tamanho mínimo
             if len(df) < 50: 
@@ -71,16 +67,12 @@ def xgboostModel():
     print("\n--- 2. CONSOLIDAÇÃO DOS DATASETS ---")
     X_train = pd.concat(lista_X_train)
     X_test = pd.concat(lista_X_test)
-    y_train = pd.concat(lista_y_train)
-    y_test = pd.concat(lista_y_test)
-
-    # Binário (-1 vira 0)
-    y_train = np.where(y_train == -1, 0, 1)
-    y_test = np.where(y_test == -1, 0, 1)
+    y_train = pd.concat(lista_y_train).astype(int) # Garante que seja inteiro
+    y_test = pd.concat(lista_y_test).astype(int)   # Garante que seja inteiro
 
     print(f"   Shape Final TREINO: {X_train.shape}")
     print(f"   Shape Final TESTE:  {X_test.shape}")
-    print(f"   Distribuição Treino: {np.bincount(y_train)} (0 vs 1)")
+    print(f"   Distribuição Treino: {np.bincount(y_train)} (0: Venda vs 1: Compra)")
 
     # Normaliza
     print("\n--- 3. NORMALIZAÇÃO (StandardScaler) ---")
@@ -107,7 +99,6 @@ def xgboostModel():
     print("   Modelo treinado.")
 
     # Tunagem
-    
     print("\n--- 5. THRESHOLD TUNING (Busca Pelo Limiar Perfeito) ---")
     print("   Calculando probabilidades...")
     probs = model.predict_proba(X_test_scaled)[:, 1]
@@ -188,8 +179,8 @@ def xgboostModel():
              bbox=dict(boxstyle="round,pad=1", fc="#f0f0f0", ec="black", alpha=0.9))
 
     plt.tight_layout()
-    plt.savefig('./xgboost/matriz-2-classes.png', dpi=300)
-    print("\n[SUCESSO] Imagem salva como: 'matriz-2-classes.png'")
+    plt.savefig('./xgboost/matriz-2-classes-binary.png', dpi=300)
+    print("\n[SUCESSO] Imagem salva como: './xgboost/matriz-2-classes-binary.png'")
     print("O script finalizou com sucesso.")
 
 if __name__ == "__main__":

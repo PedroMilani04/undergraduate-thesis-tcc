@@ -33,10 +33,7 @@ def main():
         try:
             df = pd.read_csv(os.path.join(INPUT_FOLDER, arquivo))
 
-            # [DECISÃO DE PROJETO]
-            # Descomente para 2 Classes (Filtrar Neutros)
-            # Comente para 3 Classes (Usar Tudo)
-           #df = df[df[TARGET_COL] != 0] 
+      
 
             if len(df) < 50: continue
 

@@ -34,11 +34,6 @@ def main():
         try:
             df = pd.read_csv(os.path.join(INPUT_FOLDER, arquivo))
 
-            # [DECISÃO DE PROJETO]
-            # Descomente a linha abaixo para FILTRAR NEUTROS (Modo 2 Classes)
-            # Comente para usar TUDO (Modo 3 Classes)
-            # df = df[df[TARGET_COL] != 0] 
-
             if len(df) < 50: continue
 
             # Gera indicadores (RSI, MACD, Lags...)

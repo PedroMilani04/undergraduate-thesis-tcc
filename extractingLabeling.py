@@ -37,7 +37,6 @@ def rotular_barreira_tripla(row, dados_futuros, horizonte, alvo):
     barreira_alta = preco_inicial * (1 + alvo)
     barreira_baixa = preco_inicial * (1 - alvo)
     
-    # --- CORREÇÃO AQUI ---
     touched_high = precos_futuros[precos_futuros >= barreira_alta].dropna().index
     touched_low = precos_futuros[precos_futuros <= barreira_baixa].dropna().index
     
