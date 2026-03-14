@@ -97,6 +97,14 @@ def xgboostModel():
     )
     print("   Pesos calculados para forçar o aprendizado das classes minoritárias.")
 
+    # Garante que todas as 3 classes existam em y_train para evitar erro de validação do XGBoost
+    for c in [0, 1, 2]:
+        if c not in y_train.values:
+            print(f"   [AVISO] Classe {c} ausente no treino! Injetando amostra falsa com peso baixo.")
+            X_train_scaled = np.vstack([X_train_scaled, X_train_scaled[0:1]])
+            y_train = pd.concat([y_train, pd.Series([c])], ignore_index=True)
+            sample_weights = np.append(sample_weights, 1e-5)
+
     # Treino
     print("\n--- 5. TREINAMENTO (MULTICLASSE) ---")
     model = xgb.XGBClassifier(
@@ -132,8 +140,8 @@ def xgboostModel():
     classes_nomes = ['Venda', 'Neutro', 'Compra']
     
     # Dicionário para o texto
-    report_dict = classification_report(y_test, preds, target_names=classes_nomes, output_dict=True)
-    report_str = classification_report(y_test, preds, target_names=classes_nomes)
+    report_dict = classification_report(y_test, preds, labels=[0, 1, 2], target_names=classes_nomes, output_dict=True, zero_division=0)
+    report_str = classification_report(y_test, preds, labels=[0, 1, 2], target_names=classes_nomes, zero_division=0)
     
     print("Relatório Final:")
     print(report_str)
@@ -143,7 +151,7 @@ def xgboostModel():
     
     # 1. Heatmap (3x3 agora)
     plt.subplot(1, 2, 1)
-    cm = confusion_matrix(y_test, preds)
+    cm = confusion_matrix(y_test, preds, labels=[0, 1, 2])
     sns.heatmap(cm, annot=True, fmt='d', cmap='Reds', cbar=False, annot_kws={"size": 14})
     plt.title(f"MATRIZ DE CONFUSÃO (BASELINE 3 CLASSES)\nAcurácia: {acc:.2%}", fontsize=14, fontweight='bold', pad=20)
     plt.ylabel('Real', fontsize=12)

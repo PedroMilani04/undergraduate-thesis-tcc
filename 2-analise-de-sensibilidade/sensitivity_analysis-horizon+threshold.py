@@ -78,7 +78,7 @@ def rotular_barreira_tripla(row, dados_futuros, horizonte, alvo):
         return -1
 
 
-def run_labeling(horizonte_dias: int, alvo: float) -> None:
+def run_labeling(horizonte_dias: int, alvo: float) -> dict:
     """Download (or reuse cached) data and regenerate labeled CSVs."""
     import yfinance as yf
 
@@ -87,6 +87,8 @@ def run_labeling(horizonte_dias: int, alvo: float) -> None:
     print(f"\n{'='*70}")
     print(f"  LABELING  —  HORIZONTE_DIAS = {horizonte_dias}  |  ALVO = {alvo}")
     print(f"{'='*70}")
+
+    total_counts = {-1: 0, 0: 0, 1: 0}
 
     for ativo in TICKERS:
         print(f"\n  >> Processando: {ativo}...")
@@ -124,10 +126,16 @@ def run_labeling(horizonte_dias: int, alvo: float) -> None:
             print(f"     SALVO: {nome_arquivo}  |  "
                   f"Dist: {df_final['Alvo'].value_counts(normalize=True).to_dict()}")
 
+            counts = df_final['Alvo'].value_counts().to_dict()
+            total_counts[-1] += counts.get(-1, 0)
+            total_counts[0] += counts.get(0, 0)
+            total_counts[1] += counts.get(1, 0)
+
         except Exception as e:
             print(f"     [ERRO CRÍTICO] Falha em {ativo}: {e}")
 
     print("\n  Labeling concluído.")
+    return total_counts
 
 
 # ============================================================================
@@ -258,13 +266,20 @@ def main():
             print(f"{'#'*70}")
 
             # 1. Regenerate labeled data
-            run_labeling(horizonte, alvo)
+            class_counts = run_labeling(horizonte, alvo)
 
             # 2. Train XGBoost and collect metrics
             metrics = run_xgboost_model()
 
             # 3. Store result
-            row = {'horizonte_dias': horizonte, 'alvo_retorno': alvo, **metrics}
+            row = {
+                'horizonte_dias': horizonte, 
+                'alvo_retorno': alvo, 
+                'total_venda': class_counts[-1],
+                'total_neutro': class_counts[0],
+                'total_compra': class_counts[1],
+                **metrics
+            }
             all_results.append(row)
 
             print(f"\n  [OK] Resultado salvo em memória: {row}")
