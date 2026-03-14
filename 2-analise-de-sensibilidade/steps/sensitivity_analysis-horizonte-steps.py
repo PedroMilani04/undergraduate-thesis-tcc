@@ -36,6 +36,7 @@ sys.path.insert(0, ROOT_DIR)
 # ---------------------------------------------------------------------------
 HORIZONTE_MIN = 3
 HORIZONTE_MAX = 20
+HORIZONTE_STEP = 1       # step size for horizon iterations
 ALVO_RETORNO  = 0.03       # kept constant throughout
 TICKERS = [
     'PETR4.SA', 'VALE3.SA', 'ITUB4.SA', 'BBDC4.SA', 'ABEV3.SA',
@@ -45,7 +46,7 @@ INICIO = '2015-01-01'
 FIM    = '2024-12-31'
 
 INPUT_FOLDER  = os.path.join(ROOT_DIR, '1-processed-data')
-OUTPUT_CSV    = os.path.join(SCRIPT_DIR, 'sensitivity_results.csv')
+OUTPUT_CSV    = os.path.join(SCRIPT_DIR, 'sensitivity_results-horizonte.csv')
 
 
 # ============================================================================
@@ -241,10 +242,10 @@ def run_xgboost_model() -> dict:
 def main():
     all_results = []
 
-    horizonte_values = range(HORIZONTE_MIN, HORIZONTE_MAX + 1)
-    total = len(list(horizonte_values))
+    horizonte_values = list(range(HORIZONTE_MIN, HORIZONTE_MAX + 1, HORIZONTE_STEP))
+    total = len(horizonte_values)
 
-    for idx, horizonte in enumerate(range(HORIZONTE_MIN, HORIZONTE_MAX + 1), start=1):
+    for idx, horizonte in enumerate(horizonte_values, start=1):
         print(f"\n\n{'#'*70}")
         print(f"#  ITERAÇÃO {idx}/{total}  —  HORIZONTE_DIAS = {horizonte}")
         print(f"{'#'*70}")
