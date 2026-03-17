@@ -272,12 +272,17 @@ def main():
             metrics = run_xgboost_model()
 
             # 3. Store result
+            ev_compra = (metrics['compra_precision'] * alvo) - ((1 - metrics['compra_precision']) * alvo)
+            ev_venda = (metrics['venda_precision'] * alvo) - ((1 - metrics['venda_precision']) * alvo)
+
             row = {
                 'horizonte_dias': horizonte, 
                 'alvo_retorno': alvo, 
                 'total_venda': class_counts[-1],
                 'total_neutro': class_counts[0],
                 'total_compra': class_counts[1],
+                'EV_Compra': ev_compra,
+                'EV_Venda': ev_venda,
                 **metrics
             }
             all_results.append(row)
