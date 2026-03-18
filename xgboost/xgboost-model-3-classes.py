@@ -186,5 +186,34 @@ def xgboostModel():
     plt.savefig('./xgboost/matriz-baseline-3-classes.png', dpi=300)
     print("\n[SUCESSO] Imagem salva como: 'matriz-baseline-3-classes.png'")
 
+    # --- 7. EXPORTAÇÃO DOS DADOS DE TREINO E TESTE ---
+    print("\n--- 7. EXPORTANDO DADOS (TREINO/TESTE) ---")
+    cols = X_train.columns
+    
+    if isinstance(X_train_scaled, np.ndarray):
+        df_train_export = pd.DataFrame(X_train_scaled, columns=cols)
+    else:
+        df_train_export = X_train_scaled.copy()
+        df_train_export = df_train_export.reset_index(drop=True)
+        
+    df_train_export['Target_Real'] = y_train.values
+    df_train_export['Target_Previsto'] = model.predict(X_train_scaled)
+    df_train_export['Split'] = 'Treino'
+
+    if isinstance(X_test_scaled, np.ndarray):
+        df_test_export = pd.DataFrame(X_test_scaled, columns=cols)
+    else:
+        df_test_export = X_test_scaled.copy()
+        df_test_export = df_test_export.reset_index(drop=True)
+        
+    df_test_export['Target_Real'] = y_test.values
+    df_test_export['Target_Previsto'] = preds
+    df_test_export['Split'] = 'Teste'
+
+    df_export = pd.concat([df_train_export, df_test_export], ignore_index=True)
+    export_path = './xgboost/features_treino_teste_3_classes.csv'
+    df_export.to_csv(export_path, index=False)
+    print(f"   [SUCESSO] Arquivo salvo em: '{export_path}'")
+
 if __name__ == "__main__":
     xgboostModel()
