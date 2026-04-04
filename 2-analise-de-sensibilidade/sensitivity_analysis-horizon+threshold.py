@@ -202,10 +202,28 @@ def run_xgboost_model(df_fed: pd.DataFrame, df_selic: pd.DataFrame) -> dict:
             df['Taxa_Media_(% aa)'] = df['Taxa_Media_(% aa)'].ffill().bfill()
             df['Taxa_Selic_(% aa)'] = df['Taxa_Selic_(% aa)'].ffill().bfill()
 
-            # --- Lags das taxas de juros ---
-            for lag in [1, 2, 3, 5, 10, 21]:
-                df[f'Taxa_Fed_lag_{lag}']   = df['Taxa_Media_(% aa)'].shift(lag)
-                df[f'Taxa_Selic_lag_{lag}'] = df['Taxa_Selic_(% aa)'].shift(lag)
+
+
+            # --- FEATURE ENGINEERING INTELIGENTE PARA JUROS (DELTAS E SPREAD) ---
+            
+            # 1. Deltas (Variação da taxa em relação ao passado)
+            # Usando janelas financeiras clássicas: 5 dias (1 sem), 21 dias (1 mês), 63 dias (3 meses)
+            for lag in [5, 21, 63]: 
+                df[f'Fed_Delta_{lag}d'] = df['Taxa_Media_(% aa)'] - df['Taxa_Media_(% aa)'].shift(lag)
+                df[f'Selic_Delta_{lag}d'] = df['Taxa_Selic_(% aa)'] - df['Taxa_Selic_(% aa)'].shift(lag)
+                
+            # 2. Aceleração da Selic (A diferença da diferença: os juros estão caindo/subindo mais rápido?)
+            df['Selic_Aceleracao'] = df['Selic_Delta_21d'] - df['Selic_Delta_21d'].shift(21)
+            
+            # 3. Spread Brasil x EUA (A principal feature de fluxo cambial)
+            df['Spread_BR_US'] = df['Taxa_Selic_(% aa)'] - df['Taxa_Media_(% aa)']
+            df['Spread_BR_US_Delta_21d'] = df['Spread_BR_US'] - df['Spread_BR_US'].shift(21)
+
+            # --- LIMPEZA: REMOVENDO O RUÍDO ABSOLUTO ---
+            # Removemos a taxa pura para evitar que o modelo sofra overfitting "decorando" o ano
+            df.drop(columns=['Taxa_Media_(% aa)', 'Taxa_Selic_(% aa)'], inplace=True, errors='ignore')
+
+
 
             df_features = transforming.calcular_indicadores_tecnicos(df)
 
