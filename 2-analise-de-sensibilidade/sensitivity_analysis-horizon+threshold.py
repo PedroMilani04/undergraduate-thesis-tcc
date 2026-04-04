@@ -44,7 +44,37 @@ INICIO = '2015-01-01'
 FIM    = '2024-12-31'
 
 INPUT_FOLDER  = os.path.join(ROOT_DIR, '1-processed-data')
-OUTPUT_CSV    = os.path.join(SCRIPT_DIR, 'sensitivity_results-years.csv')
+RAW_DATA_FOLDER = os.path.join(ROOT_DIR, '0-raw-data')
+OUTPUT_CSV    = os.path.join(SCRIPT_DIR, 'taxas+sensitivity_results-years.csv')
+
+
+# ============================================================================
+# STEP 0 — Load interest rates once (reused across all iterations)
+# ============================================================================
+
+def load_interest_rates() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Loads Fed Funds Rate and Selic, reindexed to daily frequency."""
+
+    # Fed Funds Rate
+    fed_path = os.path.join(RAW_DATA_FOLDER, 'fed_funds_rate_COMPLETO_2015_2024.csv')
+    df_fed = pd.read_csv(fed_path, parse_dates=['DATE'])
+    df_fed = df_fed[['DATE', 'Taxa_Media_(% aa)']].rename(columns={'DATE': 'Date'})
+    df_fed['Date'] = pd.to_datetime(df_fed['Date']).dt.normalize()
+    df_fed = df_fed.set_index('Date').sort_index()
+    df_fed = df_fed.reindex(pd.date_range(df_fed.index.min(), df_fed.index.max(), freq='D')).ffill()
+    print(f"   Fed Funds Rate: {len(df_fed)} dias carregados.")
+
+    # Selic
+    selic_path = os.path.join(RAW_DATA_FOLDER, 'taxa_selic_apurada_v2.csv')
+    df_selic = pd.read_csv(selic_path, parse_dates=['Data'])
+    df_selic = df_selic[['Data', 'Taxa (% a.a.)']].rename(columns={'Data': 'Date', 'Taxa (% a.a.)': 'Taxa_Selic_(% aa)'})
+    df_selic['Date'] = pd.to_datetime(df_selic['Date'], dayfirst=True).dt.normalize()
+    df_selic = df_selic.set_index('Date').sort_index()
+    df_selic['Taxa_Selic_(% aa)'] = pd.to_numeric(df_selic['Taxa_Selic_(% aa)'], errors='coerce')
+    df_selic = df_selic.reindex(pd.date_range(df_selic.index.min(), df_selic.index.max(), freq='D')).ffill()
+    print(f"   Selic Rate: {len(df_selic)} dias carregados.")
+
+    return df_fed, df_selic
 
 
 # ============================================================================
@@ -142,7 +172,7 @@ def run_labeling(horizonte_dias: int, alvo: float) -> dict:
 # STEP 2 — XGBoost 3-class model  (returns metrics dict)
 # ============================================================================
 
-def run_xgboost_model() -> dict:
+def run_xgboost_model(df_fed: pd.DataFrame, df_selic: pd.DataFrame) -> dict:
     """
     Trains and evaluates the XGBoost 3-class model.
     Returns a dict with accuracy, precision, recall, and F1 per class.
@@ -164,6 +194,18 @@ def run_xgboost_model() -> dict:
 
             if len(df) < 50:
                 continue
+
+            # --- Adiciona taxas de juros como features ---
+            df['Date'] = pd.to_datetime(df['Date']).dt.normalize()
+            df = df.join(df_fed, on='Date', how='left')
+            df = df.join(df_selic, on='Date', how='left')
+            df['Taxa_Media_(% aa)'] = df['Taxa_Media_(% aa)'].ffill().bfill()
+            df['Taxa_Selic_(% aa)'] = df['Taxa_Selic_(% aa)'].ffill().bfill()
+
+            # --- Lags das taxas de juros ---
+            for lag in [1, 2, 3, 5, 10, 21]:
+                df[f'Taxa_Fed_lag_{lag}']   = df['Taxa_Media_(% aa)'].shift(lag)
+                df[f'Taxa_Selic_lag_{lag}'] = df['Taxa_Selic_(% aa)'].shift(lag)
 
             df_features = transforming.calcular_indicadores_tecnicos(df)
 
@@ -255,6 +297,10 @@ def run_xgboost_model() -> dict:
 def main():
     all_results = []
 
+    # --- Carrega taxas uma única vez, fora do loop ---
+    print("\n--- 0. CARREGANDO TAXAS DE JUROS ---")
+    df_fed, df_selic = load_interest_rates()
+
     horizonte_values = HORIZONTE_PERIODS
     total_iteracoes = len(horizonte_values) * len(THRESHOLDS)
 
@@ -269,7 +315,7 @@ def main():
             class_counts = run_labeling(horizonte, alvo)
 
             # 2. Train XGBoost and collect metrics
-            metrics = run_xgboost_model()
+            metrics = run_xgboost_model(df_fed, df_selic)
 
             # 3. Store result
             ev_compra = (metrics['compra_precision'] * alvo) - ((1 - metrics['compra_precision']) * alvo)

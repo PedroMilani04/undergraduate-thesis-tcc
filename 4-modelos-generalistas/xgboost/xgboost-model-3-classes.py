@@ -8,15 +8,18 @@ from sklearn.utils.class_weight import compute_sample_weight
 import os
 import sys
 
-# Adiciona o diretório pai ao path para importar o transforming
+# Adiciona o diretório raiz do projeto ao path para importar o transforming
+# Estrutura: tcc/4-modelos-generalistas/xgboost/  →  raiz = dois níveis acima
 current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(current_dir)
-sys.path.append(parent_dir)
+parent_dir = os.path.dirname(current_dir)          # 4-modelos-generalistas/
+root_dir = os.path.dirname(parent_dir)              # tcc/ (onde transforming.py está)
+sys.path.append(root_dir)
 
 import transforming  # Seu arquivo atualizado com Lags, Slopes, ATR, etc.
 
 # --- CONFIGURAÇÕES ---
-INPUT_FOLDER = '1-processed-data'
+INPUT_FOLDER = os.path.join(root_dir, '1-processed-data')
+RAW_DATA_FOLDER = os.path.join(root_dir, '0-raw-data')
 TARGET_COL = 'Alvo'
 
 def xgboostModel():
@@ -30,8 +33,31 @@ def xgboostModel():
     print("   Objetivo: Demonstrar a dificuldade de prever o ruído (Neutro)")
     print("="*70 + "\n")
 
+    # --- CARREGA TAXAS DE JUROS (uma vez, fora do loop) ---
+    print("--- 0. CARREGANDO TAXAS DE JUROS ---")
+
+    # Fed Funds Rate
+    fed_path = os.path.join(RAW_DATA_FOLDER, 'fed_funds_rate_COMPLETO_2015_2024.csv')
+    df_fed = pd.read_csv(fed_path, parse_dates=['DATE'])
+    df_fed = df_fed[['DATE', 'Taxa_Media_(% aa)']].rename(columns={'DATE': 'Date'})
+    df_fed['Date'] = pd.to_datetime(df_fed['Date']).dt.normalize()
+    df_fed = df_fed.set_index('Date').sort_index()
+    # Preenche fins de semana / feriados com valor anterior
+    df_fed = df_fed.reindex(pd.date_range(df_fed.index.min(), df_fed.index.max(), freq='D')).ffill()
+    print(f"   Fed Funds Rate: {len(df_fed)} dias carregados.")
+
+    # Selic
+    selic_path = os.path.join(RAW_DATA_FOLDER, 'taxa_selic_apurada_v2.csv')
+    df_selic = pd.read_csv(selic_path, parse_dates=['Data'])
+    df_selic = df_selic[['Data', 'Taxa (% a.a.)']].rename(columns={'Data': 'Date', 'Taxa (% a.a.)': 'Taxa_Selic_(% aa)'})
+    df_selic['Date'] = pd.to_datetime(df_selic['Date'], dayfirst=True).dt.normalize()
+    df_selic = df_selic.set_index('Date').sort_index()
+    df_selic['Taxa_Selic_(% aa)'] = pd.to_numeric(df_selic['Taxa_Selic_(% aa)'], errors='coerce')
+    df_selic = df_selic.reindex(pd.date_range(df_selic.index.min(), df_selic.index.max(), freq='D')).ffill()
+    print(f"   Selic Rate: {len(df_selic)} dias carregados.")
+
     arquivos = [f for f in os.listdir(INPUT_FOLDER) if f.endswith('.csv')]
-    print(f"--- 1. CARREGAMENTO DE DADOS ({len(arquivos)} arquivos) ---")
+    print(f"\n--- 1. CARREGAMENTO DE DADOS ({len(arquivos)} arquivos) ---")
     
     total_linhas = 0
 
@@ -47,6 +73,19 @@ def xgboostModel():
             if len(df) < 50: 
                 print("[PULADO] Pequeno demais")
                 continue
+
+            # --- Adiciona taxas de juros como features ---
+            df['Date'] = pd.to_datetime(df['Date']).dt.normalize()
+            df = df.join(df_fed, on='Date', how='left')
+            df = df.join(df_selic, on='Date', how='left')
+            # Preenche eventuais NaN (datas fora do range das taxas)
+            df['Taxa_Media_(% aa)'] = df['Taxa_Media_(% aa)'].ffill().bfill()
+            df['Taxa_Selic_(% aa)'] = df['Taxa_Selic_(% aa)'].ffill().bfill()
+
+            # --- LAGS DAS TAXAS DE JUROS ---
+            for lag in [1, 2, 3, 5, 10, 21]:
+                df[f'Taxa_Fed_lag_{lag}']   = df['Taxa_Media_(% aa)'].shift(lag)
+                df[f'Taxa_Selic_lag_{lag}'] = df['Taxa_Selic_(% aa)'].shift(lag)
 
             # Gera features
             df_features = transforming.calcular_indicadores_tecnicos(df)
@@ -183,7 +222,7 @@ def xgboostModel():
              bbox=dict(boxstyle="round,pad=1", fc="#fff5f5", ec="red", alpha=0.9))
 
     plt.tight_layout()
-    plt.savefig('./xgboost/matriz-baseline-3-classes.png', dpi=300)
+    plt.savefig('./matriz-baseline-3-classes+TAXAS.png', dpi=300)
     print("\n[SUCESSO] Imagem salva como: 'matriz-baseline-3-classes.png'")
 
     # --- 7. EXPORTAÇÃO DOS DADOS DE TREINO E TESTE ---
@@ -211,7 +250,7 @@ def xgboostModel():
     df_test_export['Split'] = 'Teste'
 
     df_export = pd.concat([df_train_export, df_test_export], ignore_index=True)
-    export_path = './xgboost/features_treino_teste_3_classes.csv'
+    export_path = './AAfeatures_treino_teste_3_classes.csv'
     df_export.to_csv(export_path, index=False)
     print(f"   [SUCESSO] Arquivo salvo em: '{export_path}'")
 
