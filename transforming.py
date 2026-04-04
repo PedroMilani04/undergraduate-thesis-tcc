@@ -73,7 +73,8 @@ def calcular_indicadores_tecnicos(df):
         'SMA_20_Slope', 'SMA_50_Slope',       
         'RSI', 'MACD_Hist', 'Bollinger_Pct', 'Retorno_Lag',
         'Vol_Change', 'Vol_Relativo',
-        'ATR_Relativo' # <--- Adicionado
+        'ATR_Relativo', # <--- Adicionado
+        'Taxa_Media_(% aa)', 'Taxa_Selic_(% aa)' # Taxas de Juros
     ]
     
     # Verifica existência antes de lagar
