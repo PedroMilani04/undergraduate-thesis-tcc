@@ -264,17 +264,23 @@ def xgboostModel():
     plt.subplot(1, 2, 2)
     plt.axis('off')
     
+    alvo_retorno = 0.07  # Threshold (tau) from extractingLabeling.py
+    ev_venda = (report_dict['Venda']['precision'] * alvo_retorno) - ((1 - report_dict['Venda']['precision']) * alvo_retorno)
+    ev_compra = (report_dict['Compra']['precision'] * alvo_retorno) - ((1 - report_dict['Compra']['precision']) * alvo_retorno)
+
     texto_relatorio = (
         f"--- RESULTADO DO MODELO BASELINE ---\n"
         f"Hipótese: Previsão Completa (Venda/Neutro/Compra)\n\n"
         f"Acurácia Global: {acc:.2%}\n"
         f"Baseline Aleatório: ~33.3%\n\n"
         f"CLASSE VENDA:\n"
-        f"Prec: {report_dict['Venda']['precision']:.2f} | Rec: {report_dict['Venda']['recall']:.2f} | F1: {report_dict['Venda']['f1-score']:.2f}\n\n"
+        f"Prec: {report_dict['Venda']['precision']:.2f} | Rec: {report_dict['Venda']['recall']:.2f} | F1: {report_dict['Venda']['f1-score']:.2f}\n"
+        f"EV-Venda: {ev_venda:.4f}\n\n"
         f"CLASSE NEUTRO (O VILÃO):\n"
         f"Prec: {report_dict['Neutro']['precision']:.2f} | Rec: {report_dict['Neutro']['recall']:.2f} | F1: {report_dict['Neutro']['f1-score']:.2f}\n\n"
         f"CLASSE COMPRA:\n"
-        f"Prec: {report_dict['Compra']['precision']:.2f} | Rec: {report_dict['Compra']['recall']:.2f} | F1: {report_dict['Compra']['f1-score']:.2f}\n\n"
+        f"Prec: {report_dict['Compra']['precision']:.2f} | Rec: {report_dict['Compra']['recall']:.2f} | F1: {report_dict['Compra']['f1-score']:.2f}\n"
+        f"EV-Compra: {ev_compra:.4f}\n\n"
         f"Nota: A baixa performance na classe 'Neutro'\nconfirma a dificuldade de separar ruído de sinal."
     )
     
