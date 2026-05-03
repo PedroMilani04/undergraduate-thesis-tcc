@@ -184,7 +184,7 @@ def xgboostModel():
 
     # Definimos quantas features queremos manter (ex: as 15 melhores)
     # Se quiser que o modelo decida sozinho, use RFECV
-    n_features_to_select = 15 
+    n_features_to_select = 3
     selector = RFE(estimator, n_features_to_select=n_features_to_select, step=1)
 
     print(f"   Executando RFE para selecionar as {n_features_to_select} melhores features...")
@@ -290,7 +290,7 @@ def xgboostModel():
              bbox=dict(boxstyle="round,pad=1", fc="#fff5f5", ec="red", alpha=0.9))
 
     plt.tight_layout()
-    plt.savefig('./4-modelos-generalistas/xgboost/rfe/TAXAS+RFE-matriz-baseline-3-classes.png', dpi=300)
+    plt.savefig('./4-modelos-generalistas/xgboost/rfe/TAXAS+RFE-matriz-baseline-3-classes-3.png', dpi=300)
     print("\n[SUCESSO] Imagem salva como: 'matriz-baseline-3-classes+TAXAS+RFE.png'")
 
     # --- 7. EXPORTAÇÃO DOS DADOS DE TREINO E TESTE ---
