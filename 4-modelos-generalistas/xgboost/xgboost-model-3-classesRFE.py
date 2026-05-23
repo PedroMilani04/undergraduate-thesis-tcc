@@ -184,7 +184,7 @@ def xgboostModel():
 
     # Definimos quantas features queremos manter (ex: as 15 melhores)
     # Se quiser que o modelo decida sozinho, use RFECV
-    n_features_to_select = 3
+    n_features_to_select = 15
     selector = RFE(estimator, n_features_to_select=n_features_to_select, step=1)
 
     print(f"   Executando RFE para selecionar as {n_features_to_select} melhores features...")
@@ -290,8 +290,8 @@ def xgboostModel():
              bbox=dict(boxstyle="round,pad=1", fc="#fff5f5", ec="red", alpha=0.9))
 
     plt.tight_layout()
-    plt.savefig('./4-modelos-generalistas/xgboost/rfe/TAXAS+RFE-matriz-baseline-3-classes-3.png', dpi=300)
-    print("\n[SUCESSO] Imagem salva como: 'matriz-baseline-3-classes+TAXAS+RFE.png'")
+    plt.savefig('./4-modelos-generalistas/xgboost/eleicoes/ELEICOESRFE-matriz-baseline-3-classes-15.png', dpi=300)
+    print("\n[SUCESSO] Imagem salva como: 'ELEICOESRFE-matriz-baseline-3-classes-15.png'")
 
     # --- 7. EXPORTAÇÃO DOS DADOS DE TREINO E TESTE ---
     print("\n--- 7. EXPORTANDO DADOS (TREINO/TESTE) ---")
@@ -318,7 +318,7 @@ def xgboostModel():
     df_test_export['Split'] = 'Teste'
 
     df_export = pd.concat([df_train_export, df_test_export], ignore_index=True)
-    export_path = './4-modelos-generalistas/xgboost/rfe/RFE-features_treino_teste_3_classes.csv'
+    export_path = './4-modelos-generalistas/xgboost/eleicoes/RFE-features_treino_teste_3_classes.csv'
     df_export.to_csv(export_path, index=False)
     print(f"   [SUCESSO] Arquivo salvo em: '{export_path}'")
 

@@ -19,6 +19,32 @@ FIM = '2024-12-31'
 HORIZONTE_DIAS = 180  # (k)
 ALVO_RETORNO = 0.07  # (tau)
 
+# --- DATAS DAS ELEIÇÕES PRESIDENCIAIS ---
+# Brasil: 2º turno (resultado definitivo). Próxima projeção = 4 anos após 2022.
+ELEICOES_BR = [
+    pd.Timestamp('2018-10-28'),  # 2018 — 2º turno (Bolsonaro eleito)
+    pd.Timestamp('2022-10-30'),  # 2022 — 2º turno (Lula eleito)
+    pd.Timestamp('2026-10-25'),  # 2026 — projeção (último domingo de outubro)
+]
+
+# EUA: Dia da eleição (primeira terça após a primeira segunda de novembro).
+# Projeção 2028 inclusa para cobrir contagem após nov/2024.
+ELEICOES_USA = [
+    pd.Timestamp('2016-11-08'),  # 2016 — Trump eleito
+    pd.Timestamp('2020-11-03'),  # 2020 — Biden eleito
+    pd.Timestamp('2024-11-05'),  # 2024 — Trump eleito
+    pd.Timestamp('2028-11-07'),  # 2028 — projeção
+]
+
+
+def dias_para_proxima_eleicao(date, election_dates):
+    """Retorna o número de dias corridos até a próxima data de eleição."""
+    for election in election_dates:  # lista já está em ordem crescente
+        if date <= election:
+            return (election - date).days
+    return 0  # fallback: além de todas as datas conhecidas
+
+
 # --- SUA FUNÇÃO DE ROTULAGEM (Mantida Intacta) ---
 def rotular_barreira_tripla(row, dados_futuros, horizonte, alvo):
     # Pega os preços dos próximos 'horizonte' dias
@@ -79,6 +105,11 @@ for ativo in TICKERS:
         
         # Identificador (útil para saber de quem é o arquivo se abrir depois)
         df['Ticker'] = ativo
+
+        # Dias até as próximas eleições presidenciais (contagem regressiva)
+        dates = df.index.normalize()
+        df['DiasParaEleicaoBR']  = [dias_para_proxima_eleicao(d, ELEICOES_BR)  for d in dates]
+        df['DiasParaEleicaoUSA'] = [dias_para_proxima_eleicao(d, ELEICOES_USA) for d in dates]
 
         # 3. ROTULAGEM (Aplicação da Função)
         print("   Calculando rótulos...")
