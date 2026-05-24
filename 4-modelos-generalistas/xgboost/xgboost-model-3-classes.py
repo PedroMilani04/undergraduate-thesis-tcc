@@ -82,10 +82,17 @@ def xgboostModel():
             df['Taxa_Media_(% aa)'] = df['Taxa_Media_(% aa)'].ffill().bfill()
             df['Taxa_Selic_(% aa)'] = df['Taxa_Selic_(% aa)'].ffill().bfill()
 
-            # --- LAGS DAS TAXAS DE JUROS ---
-            for lag in [1, 2, 3, 5, 10, 21]:
-                df[f'Taxa_Fed_lag_{lag}']   = df['Taxa_Media_(% aa)'].shift(lag)
-                df[f'Taxa_Selic_lag_{lag}'] = df['Taxa_Selic_(% aa)'].shift(lag)
+            # --- FEATURE ENGINEERING DE JUROS (DELTAS E SPREAD) ---
+            for lag in [5, 21, 63]:
+                df[f'Fed_Delta_{lag}d']   = df['Taxa_Media_(% aa)'] - df['Taxa_Media_(% aa)'].shift(lag)
+                df[f'Selic_Delta_{lag}d'] = df['Taxa_Selic_(% aa)'] - df['Taxa_Selic_(% aa)'].shift(lag)
+
+            df['Selic_Aceleracao']       = df['Selic_Delta_21d'] - df['Selic_Delta_21d'].shift(21)
+            df['Spread_BR_US']           = df['Taxa_Selic_(% aa)'] - df['Taxa_Media_(% aa)']
+            df['Spread_BR_US_Delta_21d'] = df['Spread_BR_US'] - df['Spread_BR_US'].shift(21)
+
+            # Remove taxas brutas para evitar overfitting temporal
+            df.drop(columns=['Taxa_Media_(% aa)', 'Taxa_Selic_(% aa)'], inplace=True, errors='ignore')
 
             # Gera features
             df_features = transforming.calcular_indicadores_tecnicos(df)
@@ -202,17 +209,23 @@ def xgboostModel():
     plt.subplot(1, 2, 2)
     plt.axis('off')
     
+    alvo_retorno = 0.07
+    ev_venda  = (report_dict['Venda']['precision']  * alvo_retorno) - ((1 - report_dict['Venda']['precision'])  * alvo_retorno)
+    ev_compra = (report_dict['Compra']['precision'] * alvo_retorno) - ((1 - report_dict['Compra']['precision']) * alvo_retorno)
+
     texto_relatorio = (
         f"--- RESULTADO DO MODELO BASELINE ---\n"
         f"Hipótese: Previsão Completa (Venda/Neutro/Compra)\n\n"
         f"Acurácia Global: {acc:.2%}\n"
         f"Baseline Aleatório: ~33.3%\n\n"
         f"CLASSE VENDA:\n"
-        f"Prec: {report_dict['Venda']['precision']:.2f} | Rec: {report_dict['Venda']['recall']:.2f} | F1: {report_dict['Venda']['f1-score']:.2f}\n\n"
+        f"Prec: {report_dict['Venda']['precision']:.2f} | Rec: {report_dict['Venda']['recall']:.2f} | F1: {report_dict['Venda']['f1-score']:.2f}\n"
+        f"EV-Venda: {ev_venda:.4f}\n\n"
         f"CLASSE NEUTRO (O VILÃO):\n"
         f"Prec: {report_dict['Neutro']['precision']:.2f} | Rec: {report_dict['Neutro']['recall']:.2f} | F1: {report_dict['Neutro']['f1-score']:.2f}\n\n"
         f"CLASSE COMPRA:\n"
-        f"Prec: {report_dict['Compra']['precision']:.2f} | Rec: {report_dict['Compra']['recall']:.2f} | F1: {report_dict['Compra']['f1-score']:.2f}\n\n"
+        f"Prec: {report_dict['Compra']['precision']:.2f} | Rec: {report_dict['Compra']['recall']:.2f} | F1: {report_dict['Compra']['f1-score']:.2f}\n"
+        f"EV-Compra: {ev_compra:.4f}\n\n"
         f"Nota: A baixa performance na classe 'Neutro'\nconfirma a dificuldade de separar ruído de sinal."
     )
     
@@ -222,8 +235,10 @@ def xgboostModel():
              bbox=dict(boxstyle="round,pad=1", fc="#fff5f5", ec="red", alpha=0.9))
 
     plt.tight_layout()
-    plt.savefig('./matriz-baseline-3-classes+TAXAS.png', dpi=300)
-    print("\n[SUCESSO] Imagem salva como: 'matriz-baseline-3-classes.png'")
+    output_dir = os.path.join(current_dir, 'baseline')
+    os.makedirs(output_dir, exist_ok=True)
+    plt.savefig(os.path.join(output_dir, 'matriz-baseline-3-classes.png'), dpi=300)
+    print("\n[SUCESSO] Imagem salva em: 'baseline/matriz-baseline-3-classes.png'")
 
     # --- 7. EXPORTAÇÃO DOS DADOS DE TREINO E TESTE ---
     print("\n--- 7. EXPORTANDO DADOS (TREINO/TESTE) ---")
@@ -250,7 +265,7 @@ def xgboostModel():
     df_test_export['Split'] = 'Teste'
 
     df_export = pd.concat([df_train_export, df_test_export], ignore_index=True)
-    export_path = './AAfeatures_treino_teste_3_classes.csv'
+    export_path = os.path.join(output_dir, 'features_treino_teste_3_classes.csv')
     df_export.to_csv(export_path, index=False)
     print(f"   [SUCESSO] Arquivo salvo em: '{export_path}'")
 

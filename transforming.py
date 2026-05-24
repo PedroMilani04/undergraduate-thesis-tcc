@@ -67,14 +67,23 @@ def calcular_indicadores_tecnicos(df):
         vol_sma_20 = df['Volume'].rolling(window=20).mean()
         df['Vol_Relativo'] = df['Volume'] / vol_sma_20
 
-    # --- 4. LAGS (Incluindo as novidades) ---
+    # --- 4. VIX (se disponível) ---
+    # Mede o medo/incerteza do mercado americano (implícito nas opções do S&P 500).
+    if 'VIX' in df.columns:
+        vix_ma20 = df['VIX'].rolling(20).mean()
+        df['VIX_Relativo'] = df['VIX'] / vix_ma20          # Pânico atual vs. nível recente
+        df['VIX_Delta_5d']  = df['VIX'] - df['VIX'].shift(5)   # Mudança de curto prazo
+        df['VIX_Delta_21d'] = df['VIX'] - df['VIX'].shift(21)  # Mudança de médio prazo
+
+    # --- 5. LAGS (Incluindo as novidades) ---
     features_para_lag = [
         'Dist_SMA_20', 'Dist_SMA_Cruzamento', 
         'SMA_20_Slope', 'SMA_50_Slope',       
         'RSI', 'MACD_Hist', 'Bollinger_Pct', 'Retorno_Lag',
         'Vol_Change', 'Vol_Relativo',
-        'ATR_Relativo', # <--- Adicionado
-        'Taxa_Media_(% aa)', 'Taxa_Selic_(% aa)' # Taxas de Juros
+        'ATR_Relativo',
+        'Taxa_Media_(% aa)', 'Taxa_Selic_(% aa)',  # Taxas de Juros
+        'VIX', 'VIX_Relativo', 'VIX_Delta_5d', 'VIX_Delta_21d',  # VIX
     ]
     
     # Verifica existência antes de lagar
