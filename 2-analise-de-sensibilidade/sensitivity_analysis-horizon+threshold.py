@@ -45,7 +45,29 @@ FIM    = '2024-12-31'
 
 INPUT_FOLDER  = os.path.join(ROOT_DIR, '1-processed-data')
 RAW_DATA_FOLDER = os.path.join(ROOT_DIR, '0-raw-data')
-OUTPUT_CSV    = os.path.join(SCRIPT_DIR, 'taxas+sensitivity_results-years.csv')
+OUTPUT_CSV    = os.path.join(SCRIPT_DIR, 'eleicoes+sensitivity_results-years.csv')
+
+# Features used for training — must match the 9-feature RFE experiment.
+SELECTED_FEATURES = [
+    'DiasParaEleicaoBR', 'DiasParaEleicaoUSA',
+    'Fed_Delta_21d', 'Selic_Delta_21d',
+    'Fed_Delta_63d', 'Selic_Delta_63d',
+    'Spread_BR_US', 'Spread_BR_US_Delta_21d',
+    'MACD_Signal',
+]
+
+# Election dates — kept in sync with extractingLabeling.py
+ELEICOES_BR = [
+    pd.Timestamp('2018-10-28'),  # 2018 — 2º turno
+    pd.Timestamp('2022-10-30'),  # 2022 — 2º turno
+    pd.Timestamp('2026-10-25'),  # 2026 — projeção
+]
+ELEICOES_USA = [
+    pd.Timestamp('2016-11-08'),  # 2016
+    pd.Timestamp('2020-11-03'),  # 2020
+    pd.Timestamp('2024-11-05'),  # 2024
+    pd.Timestamp('2028-11-07'),  # 2028 — projeção
+]
 
 
 # ============================================================================
@@ -80,6 +102,14 @@ def load_interest_rates() -> tuple[pd.DataFrame, pd.DataFrame]:
 # ============================================================================
 # STEP 1 — Labeling  (re-implemented inline to avoid global-state issues)
 # ============================================================================
+
+def dias_para_proxima_eleicao(date, election_dates):
+    """Retorna o número de dias corridos até a próxima data de eleição."""
+    for election in election_dates:
+        if date <= election:
+            return (election - date).days
+    return 0
+
 
 def rotular_barreira_tripla(row, dados_futuros, horizonte, alvo):
     """Triple-barrier labeling function (copy from extractingLabeling.py)."""
@@ -137,6 +167,11 @@ def run_labeling(horizonte_dias: int, alvo: float) -> dict:
 
             df['Retorno_Diario'] = df['Close'].pct_change()
             df['Ticker'] = ativo
+
+            # Dias até as próximas eleições presidenciais (contagem regressiva)
+            dates = df.index.normalize()
+            df['DiasParaEleicaoBR']  = [dias_para_proxima_eleicao(d, ELEICOES_BR)  for d in dates]
+            df['DiasParaEleicaoUSA'] = [dias_para_proxima_eleicao(d, ELEICOES_USA) for d in dates]
 
             labels = []
             for i in range(len(df)):
@@ -250,6 +285,11 @@ def run_xgboost_model(df_fed: pd.DataFrame, df_selic: pd.DataFrame) -> dict:
     # Remap -1/0/1 → 0/1/2
     y_train = y_train + 1
     y_test  = y_test  + 1
+
+    # Filter to the fixed feature set defined in SELECTED_FEATURES
+    available_features = [f for f in SELECTED_FEATURES if f in X_train.columns]
+    X_train = X_train[available_features]
+    X_test  = X_test[available_features]
 
     X_train_scaled, X_test_scaled, _ = transforming.normalizar_dados(X_train, X_test)
 

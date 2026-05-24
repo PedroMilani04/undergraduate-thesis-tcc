@@ -78,14 +78,14 @@ def rotular_barreira_tripla(row, dados_futuros, horizonte, alvo):
 
 # --- PROCESSAMENTO EM LOOP ---
 # --- CARREGANDO VIX (uma vez, antes do loop) ---
-print("--- CARREGANDO VIX ---")
+""" print("--- CARREGANDO VIX ---")
 df_vix = yf.download('^VIX', start=INICIO, end=FIM, auto_adjust=True, progress=False)
 if isinstance(df_vix.columns, pd.MultiIndex):
     df_vix.columns = df_vix.columns.get_level_values(0)
 df_vix = df_vix[['Close']].rename(columns={'Close': 'VIX'})
 df_vix.index = pd.to_datetime(df_vix.index).normalize()
 df_vix = df_vix.reindex(pd.date_range(df_vix.index.min(), df_vix.index.max(), freq='D')).ffill()
-print(f"   VIX: {len(df_vix)} dias carregados.")
+print(f"   VIX: {len(df_vix)} dias carregados.") """
 
 print(f"--- INICIANDO PROCESSAMENTO DE {len(TICKERS)} ATIVOS ---")
 
@@ -121,9 +121,9 @@ for ativo in TICKERS:
         df['DiasParaEleicaoBR']  = [dias_para_proxima_eleicao(d, ELEICOES_BR)  for d in dates]
         df['DiasParaEleicaoUSA'] = [dias_para_proxima_eleicao(d, ELEICOES_USA) for d in dates]
 
-        # VIX — índice de medo do mercado americano
+        """ # VIX — índice de medo do mercado americano
         df = df.join(df_vix, how='left')
-        df['VIX'] = df['VIX'].ffill().bfill()
+        df['VIX'] = df['VIX'].ffill().bfill() """
 
         # 3. ROTULAGEM (Aplicação da Função)
         print("   Calculando rótulos...")
