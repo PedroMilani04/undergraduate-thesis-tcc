@@ -7,17 +7,29 @@ from sklearn.metrics import accuracy_score, classification_report, confusion_mat
 from sklearn.utils.class_weight import compute_sample_weight
 import os
 import sys
+from sklearn.feature_selection import RFE
 
-# Adiciona o diretório pai ao path para importar o transforming
+# Adiciona o diretório raiz do projeto ao path para importar o transforming
+# Estrutura: tcc/4-modelos-generalistas/xgboost/  →  raiz = dois níveis acima
 current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(os.path.dirname(current_dir))
-sys.path.append(parent_dir)
+parent_dir = os.path.dirname(current_dir)          # 4-modelos-generalistas/
+root_dir = os.path.dirname(parent_dir)              # tcc/ (onde transforming.py está)
+sys.path.append(root_dir)
 
 import transforming  # Seu arquivo atualizado com Lags, Slopes, ATR, etc.
 
 # --- CONFIGURAÇÕES ---
-INPUT_FOLDER = '1-processed-data'
+INPUT_FOLDER = os.path.join(root_dir, '1-processed-data')
+RAW_DATA_FOLDER = os.path.join(root_dir, '0-raw-data')
 TARGET_COL = 'Alvo'
+
+SELECTED_FEATURES = [
+    'DiasParaEleicaoBR', 'DiasParaEleicaoUSA',
+    'Fed_Delta_21d', 'Selic_Delta_21d',
+    'Fed_Delta_63d', 'Selic_Delta_63d',
+    'Spread_BR_US', 'Spread_BR_US_Delta_21d',
+    'MACD_Signal',
+]
 
 def xgboostModel():
     lista_X_train = []
@@ -30,8 +42,31 @@ def xgboostModel():
     print("   Objetivo: Demonstrar a dificuldade de prever o ruído (Neutro)")
     print("="*70 + "\n")
 
-    arquivos = ['AAPL_rotulado.csv', 'AMZN_rotulado.csv', 'GOOGL_rotulado.csv', 'MSFT_rotulado.csv', 'NVDA_rotulado.csv']
-    print(f"--- 1. CARREGAMENTO DE DADOS ({len(arquivos)} arquivos) ---")
+    # --- CARREGA TAXAS DE JUROS (uma vez, fora do loop) ---
+    print("--- 0. CARREGANDO TAXAS DE JUROS ---")
+
+    # Fed Funds Rate
+    fed_path = os.path.join(RAW_DATA_FOLDER, 'fed_funds_rate_COMPLETO_2015_2024.csv')
+    df_fed = pd.read_csv(fed_path, parse_dates=['DATE'])
+    df_fed = df_fed[['DATE', 'Taxa_Media_(% aa)']].rename(columns={'DATE': 'Date'})
+    df_fed['Date'] = pd.to_datetime(df_fed['Date']).dt.normalize()
+    df_fed = df_fed.set_index('Date').sort_index()
+    # Preenche fins de semana / feriados com valor anterior
+    df_fed = df_fed.reindex(pd.date_range(df_fed.index.min(), df_fed.index.max(), freq='D')).ffill()
+    print(f"   Fed Funds Rate: {len(df_fed)} dias carregados.")
+
+    # Selic
+    selic_path = os.path.join(RAW_DATA_FOLDER, 'taxa_selic_apurada_v2.csv')
+    df_selic = pd.read_csv(selic_path, parse_dates=['Data'])
+    df_selic = df_selic[['Data', 'Taxa (% a.a.)']].rename(columns={'Data': 'Date', 'Taxa (% a.a.)': 'Taxa_Selic_(% aa)'})
+    df_selic['Date'] = pd.to_datetime(df_selic['Date'], dayfirst=True).dt.normalize()
+    df_selic = df_selic.set_index('Date').sort_index()
+    df_selic['Taxa_Selic_(% aa)'] = pd.to_numeric(df_selic['Taxa_Selic_(% aa)'], errors='coerce')
+    df_selic = df_selic.reindex(pd.date_range(df_selic.index.min(), df_selic.index.max(), freq='D')).ffill()
+    print(f"   Selic Rate: {len(df_selic)} dias carregados.")
+
+    arquivos = ['AAPL_rotulado.csv', 'AMZN_rotulado.csv', 'GOOGL_rotulado.csv', 'MSFT_rotulado.csv', 'META_rotulado.csv']
+    print(f"\n--- 1. CARREGAMENTO DE DADOS ({len(arquivos)} arquivos) ---")
     
     total_linhas = 0
 
@@ -47,6 +82,37 @@ def xgboostModel():
             if len(df) < 50: 
                 print("[PULADO] Pequeno demais")
                 continue
+
+            # --- Adiciona taxas de juros como features ---
+            df['Date'] = pd.to_datetime(df['Date']).dt.normalize()
+            df = df.join(df_fed, on='Date', how='left')
+            df = df.join(df_selic, on='Date', how='left')
+            # Preenche eventuais NaN (datas fora do range das taxas)
+            df['Taxa_Media_(% aa)'] = df['Taxa_Media_(% aa)'].ffill().bfill()
+            df['Taxa_Selic_(% aa)'] = df['Taxa_Selic_(% aa)'].ffill().bfill()
+
+            # --- FEATURE ENGINEERING INTELIGENTE PARA JUROS (DELTAS E SPREAD) ---
+            
+            # 1. Deltas (Variação da taxa em relação ao passado)
+            # Usando janelas financeiras clássicas: 5 dias (1 sem), 21 dias (1 mês), 63 dias (3 meses)
+            for lag in [5, 21, 63]: 
+                df[f'Fed_Delta_{lag}d'] = df['Taxa_Media_(% aa)'] - df['Taxa_Media_(% aa)'].shift(lag)
+                df[f'Selic_Delta_{lag}d'] = df['Taxa_Selic_(% aa)'] - df['Taxa_Selic_(% aa)'].shift(lag)
+                
+            # 2. Aceleração da Selic (A diferença da diferença: os juros estão caindo/subindo mais rápido?)
+            df['Selic_Aceleracao'] = df['Selic_Delta_21d'] - df['Selic_Delta_21d'].shift(21)
+            
+            # 3. Spread Brasil x EUA (A principal feature de fluxo cambial)
+            df['Spread_BR_US'] = df['Taxa_Selic_(% aa)'] - df['Taxa_Media_(% aa)']
+            df['Spread_BR_US_Delta_21d'] = df['Spread_BR_US'] - df['Spread_BR_US'].shift(21)
+
+            # --- LIMPEZA: REMOVENDO O RUÍDO ABSOLUTO ---
+            # Removemos a taxa pura para evitar que o modelo sofra overfitting "decorando" o ano
+            df.drop(columns=['Taxa_Media_(% aa)', 'Taxa_Selic_(% aa)'], inplace=True, errors='ignore')
+
+
+
+            
 
             # Gera features
             df_features = transforming.calcular_indicadores_tecnicos(df)
@@ -80,6 +146,11 @@ def xgboostModel():
     y_train = y_train + 1
     y_test = y_test + 1
 
+    # Filter to the fixed feature set defined in SELECTED_FEATURES
+    available_features = [f for f in SELECTED_FEATURES if f in X_train.columns]
+    X_train = X_train[available_features]
+    X_test  = X_test[available_features]
+
     print(f"   Shape TREINO: {X_train.shape}")
     print(f"   Shape TESTE:  {X_test.shape}")
     print(f"   Distribuição: {np.bincount(y_train.astype(int))} (Venda / Neutro / Compra)")
@@ -88,6 +159,10 @@ def xgboostModel():
     print("\n--- 3. NORMALIZAÇÃO ---")
     X_train_scaled, X_test_scaled, scaler = transforming.normalizar_dados(X_train, X_test)
     print("   Normalizado.")
+
+
+
+
 
     # Pesos (Tentativa desesperada de fazer o modelo aprender o Neutro)
     print("\n--- 4. CALCULANDO PESOS (BALANCEAMENTO) ---")
@@ -104,6 +179,45 @@ def xgboostModel():
             X_train_scaled = np.vstack([X_train_scaled, X_train_scaled[0:1]])
             y_train = pd.concat([y_train, pd.Series([c])], ignore_index=True)
             sample_weights = np.append(sample_weights, 1e-5)
+
+
+
+    # --- NOVO PASSO: RECURSIVE FEATURE ELIMINATION (RFE) ---
+    print("\n--- 4.5 SELEÇÃO DE FEATURES (RFE) ---")
+
+    # Criamos um estimador "leve" para o RFE não demorar uma eternidade
+    # Usamos os mesmos parâmetros básicos do seu XGBoost
+    estimator = xgb.XGBClassifier(
+        n_estimators=100, # Menos estimadores aqui para ser rápido
+        max_depth=5,
+        random_state=42,
+        n_jobs=-1,
+        tree_method='hist' # Acelera o processamento
+    )
+
+    # Definimos quantas features queremos manter (ex: as 15 melhores)
+    # Se quiser que o modelo decida sozinho, use RFECV
+    n_features_to_select = 9
+    selector = RFE(estimator, n_features_to_select=n_features_to_select, step=1)
+
+    print(f"   Executando RFE para selecionar as {n_features_to_select} melhores features...")
+    selector = selector.fit(X_train_scaled, y_train, sample_weight=sample_weights)
+
+    # Quais features sobreviveram?
+    features_selecionadas = X_train.columns[selector.support_]
+    ranking = pd.DataFrame({
+        'Feature': X_train.columns,
+        'Ranking': selector.ranking_
+    }).sort_values(by='Ranking')
+
+    print("\n🚀 Top Features Selecionadas:")
+    print(features_selecionadas.tolist())
+
+    # Agora filtramos os dados para o treino final
+    X_train_scaled = selector.transform(X_train_scaled)
+    X_test_scaled = selector.transform(X_test_scaled)
+
+
 
     # Treino
     print("\n--- 5. TREINAMENTO (MULTICLASSE) ---")
@@ -189,8 +303,37 @@ def xgboostModel():
              bbox=dict(boxstyle="round,pad=1", fc="#fff5f5", ec="red", alpha=0.9))
 
     plt.tight_layout()
-    plt.savefig('./3-modelos-especialistas/2-USA/matriz-USA-3-classes.png', dpi=300)
-    print("\n[SUCESSO] Imagem salva como: 'matriz-USA-3-classes.png'")
+    plt.savefig('./3-modelos-especialistas/2-USA/EUA-3-classes-9.png', dpi=300)
+    print("\n[SUCESSO] Imagem salva como: 'EUA-3-classes-9.png'")
+
+    # --- 7. EXPORTAÇÃO DOS DADOS DE TREINO E TESTE ---
+    print("\n--- 7. EXPORTANDO DADOS (TREINO/TESTE) ---")
+    cols = features_selecionadas # <-- A CORREÇÃO ESTÁ AQUI
+    
+    if isinstance(X_train_scaled, np.ndarray):
+        df_train_export = pd.DataFrame(X_train_scaled, columns=cols)
+    else:
+        df_train_export = X_train_scaled.copy()
+        df_train_export = df_train_export.reset_index(drop=True)
+        
+    df_train_export['Target_Real'] = y_train.values
+    df_train_export['Target_Previsto'] = model.predict(X_train_scaled)
+    df_train_export['Split'] = 'Treino'
+
+    if isinstance(X_test_scaled, np.ndarray):
+        df_test_export = pd.DataFrame(X_test_scaled, columns=cols)
+    else:
+        df_test_export = X_test_scaled.copy()
+        df_test_export = df_test_export.reset_index(drop=True)
+        
+    df_test_export['Target_Real'] = y_test.values
+    df_test_export['Target_Previsto'] = preds
+    df_test_export['Split'] = 'Teste'
+
+    df_export = pd.concat([df_train_export, df_test_export], ignore_index=True)
+    export_path = './3-modelos-especialistas/2-USA/EUA_baseline_3_classes.csv'
+    df_export.to_csv(export_path, index=False)
+    print(f"   [SUCESSO] Arquivo salvo em: '{export_path}'")
 
 if __name__ == "__main__":
     xgboostModel()
