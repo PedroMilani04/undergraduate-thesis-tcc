@@ -87,6 +87,24 @@ df_vix.index = pd.to_datetime(df_vix.index).normalize()
 df_vix = df_vix.reindex(pd.date_range(df_vix.index.min(), df_vix.index.max(), freq='D')).ffill()
 print(f"   VIX: {len(df_vix)} dias carregados.") """
 
+# --- CARREGANDO PETRÓLEO (Brent e WTI) ---
+print("--- CARREGANDO PETRÓLEO ---")
+df_brent = yf.download('BZ=F', start=INICIO, end=FIM, auto_adjust=True, progress=False)
+if isinstance(df_brent.columns, pd.MultiIndex):
+    df_brent.columns = df_brent.columns.get_level_values(0)
+df_brent = df_brent[['Close']].rename(columns={'Close': 'Petroleo_Brent'})
+df_brent.index = pd.to_datetime(df_brent.index).normalize()
+df_brent = df_brent.reindex(pd.date_range(df_brent.index.min(), df_brent.index.max(), freq='D')).ffill()
+
+df_wti = yf.download('CL=F', start=INICIO, end=FIM, auto_adjust=True, progress=False)
+if isinstance(df_wti.columns, pd.MultiIndex):
+    df_wti.columns = df_wti.columns.get_level_values(0)
+df_wti = df_wti[['Close']].rename(columns={'Close': 'Petroleo_WTI'})
+df_wti.index = pd.to_datetime(df_wti.index).normalize()
+df_wti = df_wti.reindex(pd.date_range(df_wti.index.min(), df_wti.index.max(), freq='D')).ffill()
+
+print(f"   Brent: {len(df_brent)} dias | WTI: {len(df_wti)} dias carregados.")
+
 print(f"--- INICIANDO PROCESSAMENTO DE {len(TICKERS)} ATIVOS ---")
 
 for ativo in TICKERS:
@@ -124,6 +142,12 @@ for ativo in TICKERS:
         """ # VIX — índice de medo do mercado americano
         df = df.join(df_vix, how='left')
         df['VIX'] = df['VIX'].ffill().bfill() """
+
+        # Petróleo — Brent e WTI
+        df = df.join(df_brent, how='left')
+        df['Petroleo_Brent'] = df['Petroleo_Brent'].ffill().bfill()
+        df = df.join(df_wti, how='left')
+        df['Petroleo_WTI'] = df['Petroleo_WTI'].ffill().bfill()
 
         # 3. ROTULAGEM (Aplicação da Função)
         print("   Calculando rótulos...")

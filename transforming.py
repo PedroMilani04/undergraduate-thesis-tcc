@@ -75,6 +75,20 @@ def calcular_indicadores_tecnicos(df):
         df['VIX_Delta_5d']  = df['VIX'] - df['VIX'].shift(5)   # Mudança de curto prazo
         df['VIX_Delta_21d'] = df['VIX'] - df['VIX'].shift(21)  # Mudança de médio prazo
 
+    # --- 6. PETRÓLEO (Brent e WTI) ---
+    if 'Petroleo_Brent' in df.columns and 'Petroleo_WTI' in df.columns:
+        # 1. Deltas (Variação de curto e médio prazo do Brent e WTI)
+        for lag in [5, 21, 63]:  # 1 semana, 1 mês, 3 meses
+            df[f'Brent_Retorno_{lag}d'] = df['Petroleo_Brent'].pct_change(periods=lag)
+            df[f'WTI_Retorno_{lag}d'] = df['Petroleo_WTI'].pct_change(periods=lag)
+
+        # 2. Aceleração da Inflação Energética (Choque Rápido)
+        # O preço está subindo mais rápido este mês do que no mês passado?
+        df['Brent_Aceleracao_Mensal'] = df['Brent_Retorno_21d'] - df['Brent_Retorno_21d'].shift(21)
+
+        # Limpeza do preço bruto
+        df.drop(columns=['Petroleo_Brent', 'Petroleo_WTI'], inplace=True, errors='ignore')
+
     # --- 5. LAGS (Incluindo as novidades) ---
     features_para_lag = [
         'Dist_SMA_20', 'Dist_SMA_Cruzamento', 
@@ -84,6 +98,9 @@ def calcular_indicadores_tecnicos(df):
         'ATR_Relativo',
         'Taxa_Media_(% aa)', 'Taxa_Selic_(% aa)',  # Taxas de Juros
         'VIX', 'VIX_Relativo', 'VIX_Delta_5d', 'VIX_Delta_21d',  # VIX
+        'Brent_Retorno_5d', 'Brent_Retorno_21d', 'Brent_Retorno_63d',  # Petróleo Brent
+        'WTI_Retorno_5d', 'WTI_Retorno_21d', 'WTI_Retorno_63d',        # Petróleo WTI
+        'Brent_Aceleracao_Mensal',                                       # Aceleração Brent
     ]
     
     # Verifica existência antes de lagar
