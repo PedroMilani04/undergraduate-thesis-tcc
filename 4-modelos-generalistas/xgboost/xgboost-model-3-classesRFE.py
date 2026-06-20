@@ -16,7 +16,7 @@ parent_dir = os.path.dirname(current_dir)          # 4-modelos-generalistas/
 root_dir = os.path.dirname(parent_dir)              # tcc/ (onde transforming.py está)
 sys.path.append(root_dir)
 
-import transforming  # Seu arquivo atualizado com Lags, Slopes, ATR, etc.
+import transforming  
 
 # --- CONFIGURAÇÕES ---
 INPUT_FOLDER = os.path.join(root_dir, '1-processed-data')
@@ -290,9 +290,9 @@ def xgboostModel():
              bbox=dict(boxstyle="round,pad=1", fc="#fff5f5", ec="red", alpha=0.9))
 
     plt.tight_layout()
-    os.makedirs('./4-modelos-generalistas/xgboost/petroleum', exist_ok=True)
-    plt.savefig('./4-modelos-generalistas/xgboost/petroleum/RFE-matriz-baseline-3-classes-9features.png', dpi=300)
-    print("\n[SUCESSO] Imagem salva como: 'petroleum/RFE-matriz-baseline-3-classes-9features.png'")
+    os.makedirs('./4-modelos-generalistas/xgboost/gold', exist_ok=True)
+    plt.savefig('./4-modelos-generalistas/xgboost/gold/RFE-matriz-baseline-3-classes-9features.png', dpi=300)
+    print("\n[SUCESSO] Imagem salva como: 'gold/RFE-matriz-baseline-3-classes-9features.png'")
 
     # --- 7. EXPORTAÇÃO DOS DADOS DE TREINO E TESTE ---
     print("\n--- 7. EXPORTANDO DADOS (TREINO/TESTE) ---")
@@ -319,7 +319,7 @@ def xgboostModel():
     df_test_export['Split'] = 'Teste'
 
     df_export = pd.concat([df_train_export, df_test_export], ignore_index=True)
-    export_path = './4-modelos-generalistas/xgboost/petroleum/RFE-features_treino_teste_3_classes-9features.csv'
+    export_path = './4-modelos-generalistas/xgboost/gold/RFE-features_treino_teste_3_classes-9features.csv'
     df_export.to_csv(export_path, index=False)
     print(f"   [SUCESSO] Arquivo salvo em: '{export_path}'")
 

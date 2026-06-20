@@ -87,7 +87,7 @@ df_vix.index = pd.to_datetime(df_vix.index).normalize()
 df_vix = df_vix.reindex(pd.date_range(df_vix.index.min(), df_vix.index.max(), freq='D')).ffill()
 print(f"   VIX: {len(df_vix)} dias carregados.") """
 
-# --- CARREGANDO PETRÓLEO (Brent e WTI) ---
+# --- CARREGANDO MATÉRIAS-PRIMAS ---
 print("--- CARREGANDO PETRÓLEO ---")
 df_brent = yf.download('BZ=F', start=INICIO, end=FIM, auto_adjust=True, progress=False)
 if isinstance(df_brent.columns, pd.MultiIndex):
